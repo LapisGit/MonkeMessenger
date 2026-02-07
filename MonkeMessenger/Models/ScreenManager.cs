@@ -32,6 +32,9 @@ internal class ScreenManager : InfoScreen
     private string _currentChatName = null;
     private bool _showingAddMemberSearch = false;
     private bool _autoLoginAttempted = false;
+    
+    private int _logoutPressCount = 0;
+    
 
     internal static ScreenManager Instance;
 
@@ -95,11 +98,14 @@ internal class ScreenManager : InfoScreen
         {
             if (_showingAddMemberSearch)
             {
-                lines.Add("< Done", new Widget_PushButton(() => {
+                lines.Add("Done", new Widget_PushButton(() => {
                     _showingAddMemberSearch = false;
                     _searchedUsers.Clear();
                     LoadedScreen.SetContent();
-                }));
+                })
+                {
+                    Alignment = WidgetAlignment.Left
+                });
 
                 lines.Add("Search Users", new Widget_PromptButton(string.Empty, 64, UserInputBoard.Advanced, _addMemberHandler));
 
@@ -116,7 +122,8 @@ internal class ScreenManager : InfoScreen
             }
             else
             {
-                lines.Add("< Back to Chats", new Widget_PushButton(() => { 
+                lines.Add("Back to Chats", new Widget_PushButton(() =>
+                {
                     Plugin.SelectedChatId = null;
                     _currentChatType = null;
                     _currentChatName = null;
@@ -125,15 +132,21 @@ internal class ScreenManager : InfoScreen
                     _cachedMessages.Clear();
                     _currentScreenMode = "chats";
                     LoadedScreen.SetContent();
-                }));
+                })
+                {
+                    Alignment = WidgetAlignment.Left
+                });
                 if (_currentChatType == "group")
                 {
-                    lines.Add("+ Add Members", new Widget_PushButton(() => {
+                    lines.Add("Add Members", new Widget_PushButton(() => {
                         _showingAddMemberSearch = true;
                         _currentGroupChatId = Plugin.SelectedChatId;
                         _searchedUsers.Clear();
                         LoadedScreen.SetContent();
-                    }));
+                    })
+                    {
+                        Alignment = WidgetAlignment.Left
+                    });
                 }
 
                 if (_cachedMessages.Count == 0)
@@ -141,7 +154,13 @@ internal class ScreenManager : InfoScreen
                     _ = RefreshMessages(lines, Plugin.SelectedChatId);
                 }
 
-                lines.Add("Refresh Messages", new Widget_PushButton(() => { _ = RefreshMessages(lines, Plugin.SelectedChatId); }));
+                
+                lines.Add("Refresh Messages", new Widget_PushButton(() => { 
+                    _ = RefreshMessages(lines, Plugin.SelectedChatId);
+                })
+                {
+                    Alignment = WidgetAlignment.Left
+                });
 
                 lines.Add("Send Message", new Widget_PromptButton(string.Empty, 256, UserInputBoard.Advanced, _sendHandler));
 
@@ -154,18 +173,21 @@ internal class ScreenManager : InfoScreen
                     foreach (var m in _cachedMessages)
                     {
                         var display = $"{m.from}: {m.content}";
-                        AddWrappedMessage(lines, display, 50);
+                        lines.Add(display, LineOptions.Wrapping);
                     }
                 }
             }
         }
         else if (_currentScreenMode == "search_users")
         {
-            lines.Add("< Back to Chats", new Widget_PushButton(() => { 
+            lines.Add("Back to Chats", new Widget_PushButton(() => { 
                 _currentScreenMode = "chats";
                 _searchedUsers.Clear();
                 LoadedScreen.SetContent();
-            }));
+            })
+            {
+                Alignment = WidgetAlignment.Left
+            });
 
             lines.Add("Search Users", new Widget_PromptButton(string.Empty, 64, UserInputBoard.Advanced, _userSearchHandler));
 
@@ -197,23 +219,73 @@ internal class ScreenManager : InfoScreen
         }
         else if (_currentScreenMode == "create_group")
         {
-            lines.Add("< Back to Search", new Widget_PushButton(() => { 
+            lines.Add("Back to Search", new Widget_PushButton(() => { 
                 _currentScreenMode = "search_users";
                 LoadedScreen.SetContent();
-            }));
+            })
+            {
+                Alignment = WidgetAlignment.Left
+            });
 
             lines.Add("Group Name", new Widget_PromptButton(string.Empty, 64, UserInputBoard.Advanced, _groupNameHandler));
             lines.Add("(You'll be added automatically)");
         }
         else
         {
-            lines.Add("Refresh Chats", new Widget_PushButton(() => { _ = RefreshChats(lines); }));
+            string logoutText = _logoutPressCount switch
+            {
+                0 => "Log Out",
+                1 => "Are you sure?",
+                _ => "ARE YOU 100% CONFIDENT YOU WANT TO LOG OUT?"
+            };
             
-            lines.Add("+ Add Chat", new Widget_PushButton(() => { 
+            lines.Add(logoutText, new Widget_PushButton(() =>
+            {
+                _logoutPressCount++;
+                LoadedScreen.SetContent(); 
+                
+                if (_logoutPressCount >= 3)
+                {
+                    Plugin.accountLoggedIn = false;
+                    Plugin.AuthToken = null;
+                    Plugin.SetAuthToken(null);
+                    Plugin.SaveUsername(string.Empty);
+                    Plugin.SavePassword(string.Empty);
+                    _cachedChats.Clear();
+                    _cachedMessages.Clear();
+                    _searchedUsers.Clear();
+                    _currentScreenMode = "chats";
+                    Plugin.SelectedChatId = null;
+                    _currentChatType = null;
+                    _currentChatName = null;
+                    Plugin.CurrentChatType = null;
+                    Plugin.CurrentChatName = null;
+                    _autoLoginAttempted = false;
+                    _logoutPressCount = 0;
+                    LoadedScreen.SetContent();   
+                }
+            })
+            {
+                Alignment = WidgetAlignment.Left
+            });
+
+
+            
+            lines.Add("Add Chat", new Widget_PushButton(() => { 
                 _currentScreenMode = "search_users";
                 _searchedUsers.Clear();
                 LoadedScreen.SetContent();
-            }));
+            })
+            {
+                Alignment = WidgetAlignment.Left
+            });
+            
+            lines.Add("Refresh Chats", new Widget_PushButton(() => { 
+                _ = RefreshChats(lines);
+            })
+            {
+                Alignment = WidgetAlignment.Left
+            });
             
             if (_cachedChats == null || _cachedChats.Count == 0)
             {
@@ -250,63 +322,7 @@ internal class ScreenManager : InfoScreen
             _ = RefreshMessages(null, Plugin.SelectedChatId);
         }
     }
-
-    private void AddWrappedMessage(LineBuilder lines, string text, int maxWidth)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            lines.Add("");
-            return;
-        }
-
-        if (text.Length <= maxWidth)
-        {
-            lines.Add(text);
-            return;
-        }
-
-        var words = text.Split(' ');
-        var currentLine = "";
-        
-        foreach (var word in words)
-        {
-            if (word.Length > maxWidth)
-            {
-                if (!string.IsNullOrEmpty(currentLine))
-                {
-                    lines.Add(currentLine);
-                    currentLine = "";
-                }
-                
-                for (int i = 0; i < word.Length; i += maxWidth)
-                {
-                    int chunkLength = Math.Min(maxWidth, word.Length - i);
-                    lines.Add(word.Substring(i, chunkLength));
-                }
-            }
-            else if (!string.IsNullOrEmpty(currentLine) && (currentLine.Length + word.Length + 1) > maxWidth)
-            {
-                lines.Add(currentLine);
-                currentLine = word;
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(currentLine))
-                {
-                    currentLine = word;
-                }
-                else
-                {
-                    currentLine += " " + word;
-                }
-            }
-        }
-        
-        if (!string.IsNullOrEmpty(currentLine))
-        {
-            lines.Add(currentLine);
-        }
-    }
+    
 
     private bool IsMessageForCurrentChat(ApiClient.MessageItem message)
     {

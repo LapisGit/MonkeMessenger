@@ -44,6 +44,14 @@ public class Plugin : BaseUnityPlugin
         currentUsername = SavedUsername.Value ?? string.Empty;
         currentPassword = SavedPassword.Value ?? string.Empty;
 
+        GorillaTagger.OnPlayerSpawned(() =>
+        {
+            if (!accountLoggedIn && !string.IsNullOrEmpty(currentUsername) && !string.IsNullOrEmpty(currentPassword))
+            {
+                ApiClient.Login(currentUsername, currentPassword);
+            }
+        });
+        
         WebSocketClientInstance = new WebSocketClient();
         WebSocketClientInstance.Start();
     }
