@@ -154,7 +154,7 @@ internal class ScreenManager : InfoScreen
                     foreach (var m in _cachedMessages)
                     {
                         var display = $"{m.from}: {m.content}";
-                        AddWrappedMessage(lines, display, 65);
+                        AddWrappedMessage(lines, display, 50);
                     }
                 }
             }
