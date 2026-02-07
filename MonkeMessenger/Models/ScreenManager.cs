@@ -85,8 +85,14 @@ internal class ScreenManager : InfoScreen
             }
 
             lines.Add("Not logged in");
-            lines.Add("Username", new Widget_PromptButton(Plugin.currentUsername ?? string.Empty, 64, UserInputBoard.Advanced, _usernameHandler));
-            lines.Add("Password", new Widget_PromptButton(string.Empty, 64, UserInputBoard.Advanced, _passwordHandler));
+            lines.Add("Username", new Widget_PromptButton(Plugin.currentUsername ?? string.Empty, 64, UserInputBoard.Advanced, _usernameHandler)
+            {
+                Alignment = WidgetAlignment.Left
+            });
+            lines.Add("Password", new Widget_PromptButton(string.Empty, 64, UserInputBoard.Advanced, _passwordHandler)
+            {
+                Alignment = WidgetAlignment.Left
+            });
             lines.Add("Login", new Widget_PushButton(() => { RunAsync(DoLogin()); }));
             lines.Add("Register", new Widget_PushButton(() => { RunAsync(DoRegister()); }));
             return lines;
@@ -162,8 +168,12 @@ internal class ScreenManager : InfoScreen
                     Alignment = WidgetAlignment.Left
                 });
 
-                lines.Add("Send Message", new Widget_PromptButton(string.Empty, 256, UserInputBoard.Advanced, _sendHandler));
+                lines.Add("Send Message", new Widget_PromptButton(string.Empty, 256, UserInputBoard.Advanced, _sendHandler)
+                {
+                    Alignment = WidgetAlignment.Left
+                });
 
+                
                 if (_cachedMessages == null || _cachedMessages.Count == 0)
                 {
                     lines.Add("No messages yet");
@@ -189,7 +199,10 @@ internal class ScreenManager : InfoScreen
                 Alignment = WidgetAlignment.Left
             });
 
-            lines.Add("Search Users", new Widget_PromptButton(string.Empty, 64, UserInputBoard.Advanced, _userSearchHandler));
+            lines.Add("Search Users", new Widget_PromptButton(string.Empty, 64, UserInputBoard.Advanced, _userSearchHandler)
+            {
+                Alignment = WidgetAlignment.Left
+            });
 
             if (_searchedUsers.Count == 0)
             {
@@ -227,7 +240,10 @@ internal class ScreenManager : InfoScreen
                 Alignment = WidgetAlignment.Left
             });
 
-            lines.Add("Group Name", new Widget_PromptButton(string.Empty, 64, UserInputBoard.Advanced, _groupNameHandler));
+            lines.Add("Group Name", new Widget_PromptButton(string.Empty, 64, UserInputBoard.Advanced, _groupNameHandler)
+            {
+                Alignment = WidgetAlignment.Left
+            });
             lines.Add("(You'll be added automatically)");
         }
         else
