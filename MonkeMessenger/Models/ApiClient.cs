@@ -28,7 +28,6 @@ namespace MonkeMessenger.Models
             var op = www.SendWebRequest();
             while (!op.isDone) await Task.Yield();
 
-
             if (www.result != UnityWebRequest.Result.Success)
             {
                 var errorMsg = $"{www.error} (Code: {www.responseCode})";
@@ -67,11 +66,32 @@ namespace MonkeMessenger.Models
             var op = www.SendWebRequest();
             while (!op.isDone) await Task.Yield();
 
-
             if (www.result != UnityWebRequest.Result.Success)
             {
                 var errorMsg = $"{www.error} (Code: {www.responseCode})";
                 Logging.Error($"login failed: {errorMsg}");
+                
+                if (!string.IsNullOrEmpty(www.downloadHandler.text))
+                {
+                    try
+                    {
+                        var jObj = JObject.Parse(www.downloadHandler.text);
+                        var banned = jObj.Value<bool?>("banned");
+                        if (banned == true)
+                        {
+                            var reason = jObj.Value<string>("reason") ?? "No reason provided";
+                            Plugin.IsBanned = true;
+                            Plugin.BanReason = reason;
+                            Logging.Error($"account is banned: {reason}");
+                            return (false, null, $"Account banned: {reason}");
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        Logging.Error("ban response parse error, but login failed: " + errorMsg);
+                    }
+                }
+                
                 return (false, null, errorMsg);
             }
 
@@ -95,6 +115,7 @@ namespace MonkeMessenger.Models
             www.SetRequestHeader("Authorization", "Bearer " + token);
             var op = www.SendWebRequest();
             while (!op.isDone) await Task.Yield();
+            
 
             if (www.result != UnityWebRequest.Result.Success)
             {
@@ -265,7 +286,6 @@ namespace MonkeMessenger.Models
         public static async Task<(bool success, List<UserItem> users, string error)> SearchUsers(string token, string query)
         {
             var url = BaseUrl + $"/users/search?q={UnityWebRequest.EscapeURL(query)}";
-            
             using var www = UnityWebRequest.Get(url);
             www.SetRequestHeader("Authorization", "Bearer " + token);
             var op = www.SendWebRequest();

@@ -18,6 +18,7 @@ namespace MonkeMessenger.Models
 
         private int _reconnectAttempt = 0;
         private string _pendingAuthToken;
+        private bool _banNotificationSent = false;
 
         public WebSocketClient() { }
 
@@ -51,7 +52,7 @@ namespace MonkeMessenger.Models
             catch { }
         }
 
-        public void Authenticate(string token)
+        public async void Authenticate(string token)
         {
             if (string.IsNullOrEmpty(token)) return;
             _pendingAuthToken = token;
@@ -60,7 +61,7 @@ namespace MonkeMessenger.Models
             {
                 if (_ws != null && _ws.State == WebSocketState.Open)
                 {
-                    _ = SendAsync(Newtonsoft.Json.Linq.JObject.FromObject(new { token }).ToString());
+                    await SendAsync(JObject.FromObject(new { token }).ToString());   
                 }
             }
             catch (Exception ex)
@@ -86,7 +87,7 @@ namespace MonkeMessenger.Models
                         {
                             try
                             {
-                                await SendAsync(Newtonsoft.Json.Linq.JObject.FromObject(new { token = _pendingAuthToken }).ToString());
+                                await SendAsync(JObject.FromObject(new { token = _pendingAuthToken }).ToString());
                             }
                             catch (Exception ex)
                             {
@@ -154,6 +155,28 @@ namespace MonkeMessenger.Models
             {
                 var obj = JObject.Parse(json);
                 var type = obj.Value<string>("type");
+                
+                if (type == "banned")
+                {
+                    var reason = obj.Value<string>("reason") ?? "No reason provided";
+                    
+                    if (!_banNotificationSent)
+                    {
+                        Plugin.IsBanned = true;
+                        Plugin.BanReason = reason;
+                        Logging.Error($"Account has been banned: {reason}");
+                        
+                        Plugin.accountLoggedIn = false;
+                        Plugin.AuthToken = null;
+                        
+                        Plugin.SendNewNotification(new Notification($"You have been banned: {reason}", 10, Sounds.error3));
+                        
+                        _banNotificationSent = true;
+                    }
+                    
+                    return;
+                }
+                
                 if (type == "new_message")
                 {
                     var msgToken = obj["message"];

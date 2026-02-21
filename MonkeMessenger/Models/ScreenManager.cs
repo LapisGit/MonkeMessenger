@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using MonkeMessenger.Tools;
+using UnityEngine;
 
 namespace MonkeMessenger.Models;
 
@@ -53,6 +54,33 @@ internal class ScreenManager : InfoScreen
     {
         LineBuilder lines = new();
 
+        if (Plugin.IsOutdated)
+        {
+            lines.Add("MonkeMessenger is Outdated!");
+            lines.Add("");
+            lines.Add($"Current Version: {Constants.Version}", LineOptions.Wrapping);
+            lines.Add($"Latest Version: {Plugin.LatestVersion ?? "Unknown"}", LineOptions.Wrapping);
+            lines.Add("");
+            lines.Add("Please update to continue using MonkeMessenger.", LineOptions.Wrapping);
+            lines.Add("");
+            lines.Add("Download latest version", new Widget_PushButton(() =>
+            {
+                Application.OpenURL("https://github.com/LapisGit/MonkeMessenger/releases/latest");
+            }));
+            return lines;
+        }
+
+        if (Plugin.IsBanned)
+        {
+            lines.Add("Your account has been banned.");
+            lines.Add("");
+            lines.Add("Reason:", LineOptions.Wrapping);
+            lines.Add(Plugin.BanReason ?? "No reason provided", LineOptions.Wrapping);
+            lines.Add("");
+            lines.Add("This account cannot access MonkeMessenger anymore.");
+            return lines;
+        }
+
         bool requestRefresh = false;
         lock (Plugin.IncomingMessages)
         {
@@ -76,9 +104,7 @@ internal class ScreenManager : InfoScreen
         }
         if (!Plugin.accountLoggedIn || string.IsNullOrEmpty(Plugin.AuthToken))
         {
-            if (!_autoLoginAttempted
-                && !string.IsNullOrEmpty(Plugin.currentUsername)
-                && !string.IsNullOrEmpty(Plugin.currentPassword))
+            if (!_autoLoginAttempted && !Plugin.IsOutdated && !Plugin.IsBanned && !string.IsNullOrEmpty(Plugin.currentUsername) && !string.IsNullOrEmpty(Plugin.currentPassword))
             {
                 _autoLoginAttempted = true;
                 RunAsync(DoLogin());
@@ -157,12 +183,12 @@ internal class ScreenManager : InfoScreen
 
                 if (_cachedMessages.Count == 0)
                 {
-                    _ = RefreshMessages(lines, Plugin.SelectedChatId);
+                    RunAsync(RefreshMessages(lines, Plugin.SelectedChatId));
                 }
 
                 
                 lines.Add("Refresh Messages", new Widget_PushButton(() => { 
-                    _ = RefreshMessages(lines, Plugin.SelectedChatId);
+                    RunAsync(RefreshMessages(lines, Plugin.SelectedChatId));
                 })
                 {
                     Alignment = WidgetAlignment.Left
@@ -297,7 +323,7 @@ internal class ScreenManager : InfoScreen
             });
             
             lines.Add("Refresh Chats", new Widget_PushButton(() => { 
-                _ = RefreshChats(lines);
+                RunAsync(RefreshChats(lines));
             })
             {
                 Alignment = WidgetAlignment.Left
@@ -335,7 +361,7 @@ internal class ScreenManager : InfoScreen
     {
         if (!string.IsNullOrEmpty(Plugin.SelectedChatId) && !_showingAddMemberSearch)
         {
-            _ = RefreshMessages(null, Plugin.SelectedChatId);
+            RunAsync(RefreshMessages(null, Plugin.SelectedChatId));
         }
     }
     
@@ -405,7 +431,7 @@ internal class ScreenManager : InfoScreen
             _cachedMessages.Clear();
             _currentScreenMode = "chats";
             _searchedUsers.Clear();
-            _ = RefreshChats(null);
+            RunAsync(RefreshChats(null));
             LoadedScreen.SetContent();
         }
         else
@@ -456,6 +482,12 @@ internal class ScreenManager : InfoScreen
     {
         try
         {
+            if (Plugin.IsOutdated)
+            {
+                Plugin.SendNewNotification(new Notification("MonkeMessenger is outdated!", 5, Sounds.error2));
+                return;
+            }
+            
             if (string.IsNullOrEmpty(Plugin.currentUsername) || string.IsNullOrEmpty(Plugin.currentPassword))
             {
                 return;
@@ -470,7 +502,7 @@ internal class ScreenManager : InfoScreen
 
                 Plugin.SetAuthToken(token);
 
-                _ = RefreshChats(null);
+                RunAsync(RefreshChats(null));
                 
                 LoadedScreen.SetContent();
             }
@@ -485,6 +517,12 @@ internal class ScreenManager : InfoScreen
     {
         try
         {
+            if (Plugin.IsOutdated)
+            {
+                Plugin.SendNewNotification(new Notification("Cannot register - MonkeMessenger is outdated!", 5, Sounds.activationMain));
+                return;
+            }
+            
             if (string.IsNullOrEmpty(Plugin.currentUsername) || string.IsNullOrEmpty(Plugin.currentPassword))
             {
                 return;

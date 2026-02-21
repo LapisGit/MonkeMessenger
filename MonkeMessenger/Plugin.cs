@@ -3,10 +3,12 @@ using BepInEx;
 using BepInEx.Logging;
 using MonkeMessenger.Tools;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using GorillaInfoWatch.Models;
 using MonkeMessenger.Models;
 using GorillaInfoWatch.Models.Attributes;
 using BepInEx.Configuration;
+using UnityEngine.Networking;
 
 [assembly: InfoWatchCompatible]
 
@@ -26,6 +28,10 @@ public class Plugin : BaseUnityPlugin
     public static string CurrentChatType;
     public static string CurrentChatName;
     public static bool RefreshCurrentChatRequested;
+    public static bool IsBanned = false;
+    public static string BanReason = null;
+    public static bool IsOutdated = false;
+    public static string LatestVersion = null;
 
     private static ConfigEntry<string> SavedUsername;
     private static ConfigEntry<string> SavedPassword;
@@ -44,16 +50,24 @@ public class Plugin : BaseUnityPlugin
         currentUsername = SavedUsername.Value ?? string.Empty;
         currentPassword = SavedPassword.Value ?? string.Empty;
 
-        GorillaTagger.OnPlayerSpawned(() =>
+        GorillaTagger.OnPlayerSpawned(async () =>
         {
-            if (!accountLoggedIn && !string.IsNullOrEmpty(currentUsername) && !string.IsNullOrEmpty(currentPassword))
+            await CheckVersionAsync();
+            
+            if (IsOutdated)
             {
-                ApiClient.Login(currentUsername, currentPassword);
+                Logger.LogWarning($"MonkeMessenger is outdated");
+                return;
+            }
+            
+            WebSocketClientInstance = new WebSocketClient();
+            WebSocketClientInstance.Start();
+            
+            if (!IsBanned && !accountLoggedIn && !string.IsNullOrEmpty(currentUsername) && !string.IsNullOrEmpty(currentPassword))
+            {
+                await AutoLoginAsync();
             }
         });
-        
-        WebSocketClientInstance = new WebSocketClient();
-        WebSocketClientInstance.Start();
     }
 
     private void Update()
@@ -96,6 +110,12 @@ public class Plugin : BaseUnityPlugin
 
     public static void SetAuthToken(string token)
     {
+        if (IsOutdated)
+        {
+            Logger.LogWarning("Cannot authenticate - MonkeMessenger is outdated");
+            return;
+        }
+        
         AuthToken = token;
         if (!string.IsNullOrEmpty(token))
         {
@@ -118,6 +138,65 @@ public class Plugin : BaseUnityPlugin
         if (SavedPassword != null)
         {
             SavedPassword.Value = currentPassword;
+        }
+    }
+
+    private static async Task AutoLoginAsync()
+    {
+        try
+        {
+            if (IsOutdated || IsBanned || accountLoggedIn || string.IsNullOrEmpty(currentUsername) || string.IsNullOrEmpty(currentPassword))
+            {
+                return;
+            }
+
+            var (success, token, error) = await ApiClient.Login(currentUsername, currentPassword);
+            
+            if (success)
+            {
+                AuthToken = token;
+                accountLoggedIn = true;
+                SetAuthToken(token);
+            }
+            else
+            {
+                Logger.LogWarning($"Auto-login failed: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Auto-login error: {ex.Message}");
+        }
+    }
+
+    private static async Task CheckVersionAsync()
+    {
+        try
+        {
+            const string versionUrl = "https://raw.githubusercontent.com/LapisGit/MonkeMessenger/refs/heads/main/version.txt";
+            
+            using var www = UnityWebRequest.Get(versionUrl);
+            var op = www.SendWebRequest();
+            
+            while (!op.isDone)
+            {
+                await Task.Yield();
+            }
+
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Logger.LogError($"failed to check version: {www.error}");
+                return;
+            }
+
+            LatestVersion = www.downloadHandler.text.Trim();
+            string currentVersion = Constants.Version;
+            
+            IsOutdated = currentVersion != LatestVersion;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"version check failed: {ex.Message}");
         }
     }
 }
