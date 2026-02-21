@@ -12,7 +12,7 @@ namespace MonkeMessenger.Models;
 
 
 [ShowOnHomeScreen]
-internal class ScreenManager : InfoScreen
+public class ScreenManager : InfoScreen
 {
     public override string Title => "MonkeMessenger";
     public override string Description => "A messenger for Gorilla Tag";
@@ -33,9 +33,9 @@ internal class ScreenManager : InfoScreen
     private string _currentChatName = null;
     private bool _showingAddMemberSearch = false;
     private bool _autoLoginAttempted = false;
+    private bool? _currentChatUserOnline = null;
     
     private int _logoutPressCount = 0;
-    
 
     internal static ScreenManager Instance;
 
@@ -52,8 +52,8 @@ internal class ScreenManager : InfoScreen
 
     public override InfoContent GetContent()
     {
-        LineBuilder lines = new();
-
+        LineBuilder lines = new LineBuilder();
+        
         if (Plugin.IsOutdated)
         {
             lines.Add("MonkeMessenger is Outdated!");
@@ -162,12 +162,28 @@ internal class ScreenManager : InfoScreen
                     Plugin.CurrentChatType = null;
                     Plugin.CurrentChatName = null;
                     _cachedMessages.Clear();
+                    _currentChatUserOnline = null;
                     _currentScreenMode = "chats";
                     LoadedScreen.SetContent();
                 })
                 {
                     Alignment = WidgetAlignment.Left
                 });
+                
+                if (_currentChatType == "direct")
+                {
+                    if (_currentChatUserOnline == null)
+                    {
+                        RunAsync(FetchUserOnlineStatus(Plugin.SelectedChatId));
+                    }
+                    
+                    if (_currentChatUserOnline.HasValue)
+                    {
+                        string onlineStatus = _currentChatUserOnline.Value ? "<color=green>Online</color>" : "<color=#cccccc>Offline</color>";
+                        lines.Add($"{_currentChatName}'s Status: {onlineStatus}");
+                    }
+                }
+                
                 if (_currentChatType == "group")
                 {
                     lines.Add("Add Members", new Widget_PushButton(() => {
@@ -250,6 +266,7 @@ internal class ScreenManager : InfoScreen
                         Plugin.CurrentChatType = _currentChatType;
                         Plugin.CurrentChatName = _currentChatName;
                         _cachedMessages.Clear();
+                        _currentChatUserOnline = null;
                         _currentScreenMode = "chats";
                         LoadedScreen.SetContent();
                     }));
@@ -347,6 +364,7 @@ internal class ScreenManager : InfoScreen
                         Plugin.CurrentChatType = _currentChatType;
                         Plugin.CurrentChatName = _currentChatName;
                         _cachedMessages.Clear();
+                        _currentChatUserOnline = null;
                         _currentScreenMode = "chats";
                         LoadedScreen.SetContent();
                     }));
@@ -536,7 +554,7 @@ internal class ScreenManager : InfoScreen
         }
     }
 
-    private async Task RefreshChats(LineBuilder lines)
+    public async Task RefreshChats(LineBuilder lines)
     {
         var (success, chats, error) = await ApiClient.ListChats(Plugin.AuthToken);
         if (!success)
@@ -560,6 +578,16 @@ internal class ScreenManager : InfoScreen
         _cachedMessages = messages ?? new List<ApiClient.MessageItem>();
         
         LoadedScreen.SetContent();
+    }
+
+    private async Task FetchUserOnlineStatus(string userId)
+    {
+        var (success, online, error) = await ApiClient.CheckUserOnline(Plugin.AuthToken, userId);
+        if (success)
+        {
+            _currentChatUserOnline = online;
+            LoadedScreen.SetContent();
+        }
     }
 
     private async void OnSendEntered(object sender, UserInputArgs args)

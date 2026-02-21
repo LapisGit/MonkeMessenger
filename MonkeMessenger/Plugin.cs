@@ -157,6 +157,11 @@ public class Plugin : BaseUnityPlugin
                 AuthToken = token;
                 accountLoggedIn = true;
                 SetAuthToken(token);
+                
+                if (ScreenManager.Instance != null)
+                {
+                    await ScreenManager.Instance.RefreshChats(null);
+                }
             }
             else
             {

@@ -391,6 +391,34 @@ namespace MonkeMessenger.Models
             return (true, null);
         }
 
+        public static async Task<(bool success, bool online, string error)> CheckUserOnline(string token, string userId)
+        {
+            var url = BaseUrl + $"/users/{userId}/online";
+            using var www = UnityWebRequest.Get(url);
+            www.SetRequestHeader("Authorization", "Bearer " + token);
+            var op = www.SendWebRequest();
+            while (!op.isDone) await Task.Yield();
+
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                var errorMsg = $"{www.error} (Code: {www.responseCode})";
+                Logging.Error($"checking user online status failed: {errorMsg}");
+                return (false, false, errorMsg);
+            }
+
+            try
+            {
+                var jObj = JObject.Parse(www.downloadHandler.text);
+                var online = jObj.Value<bool>("online");
+                return (true, online, null);
+            }
+            catch (Exception e)
+            {
+                Logging.Error($"parse error when checking online status: {e.Message}");
+                return (false, false, e.Message);
+            }
+        }
+
         [Serializable]
         private class AuthRequest 
         { 
